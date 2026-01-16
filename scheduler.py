@@ -63,12 +63,12 @@ class Scheduler:
     - 优雅退出
     """
     
-    def __init__(self, schedule_time: str = "18:00"):
+    def __init__(self, schedule_time: str = "14:00"):
         """
-        初始化调度器
+        初始化調度器
         
         Args:
-            schedule_time: 每日执行时间，格式 "HH:MM"
+            schedule_time: 每日執行時間，格式 "HH:MM"（默認 14:00，台股收盤後）
         """
         try:
             import schedule
@@ -152,16 +152,16 @@ class Scheduler:
 
 def run_with_schedule(
     task: Callable,
-    schedule_time: str = "18:00",
+    schedule_time: str = "14:00",
     run_immediately: bool = True
 ):
     """
-    便捷函数：使用定时调度运行任务
+    便捷函數：使用定時調度運行任務
     
     Args:
-        task: 要执行的任务函数
-        schedule_time: 每日执行时间
-        run_immediately: 是否立即执行一次
+        task: 要執行的任務函數
+        schedule_time: 每日執行時間（默認14:00，台股收盤後）
+        run_immediately: 是否立即執行一次
     """
     scheduler = Scheduler(schedule_time=schedule_time)
     scheduler.set_daily_task(task, run_immediately=run_immediately)

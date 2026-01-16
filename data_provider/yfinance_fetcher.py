@@ -51,7 +51,7 @@ class YfinanceFetcher(BaseFetcher):
     """
     
     name = "YfinanceFetcher"
-    priority = 4
+    priority = 5  # 調低優先級，台股優先使用 TaiwanStockFetcher
     
     def __init__(self):
         """初始化 YfinanceFetcher"""

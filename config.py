@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 配置管理模块
+A股自選股智能分析系統 - 配置管理模塊
 ===================================
 
-职责：
-1. 使用单例模式管理全局配置
-2. 从 .env 文件加载敏感配置
-3. 提供类型安全的配置访问接口
+職責：
+1. 使用單例模式管理全局配置
+2. 從 .env 檔案加載敏感配置
+3. 提供類型安全的配置訪問介面
 """
 
 import os
@@ -20,16 +20,19 @@ from dataclasses import dataclass, field
 @dataclass
 class Config:
     """
-    系统配置类 - 单例模式
+    系統配置類 - 單例模式
     
-    设计说明：
-    - 使用 dataclass 简化配置属性定义
-    - 所有配置项从环境变量读取，支持默认值
-    - 类方法 get_instance() 实现单例访问
+    設計說明：
+    - 使用 dataclass 簡化配置屬性定義
+    - 所有配置項從環境變數讀取，支援默認值
+    - 類方法 get_instance() 實現單例訪問
     """
     
     # === 自选股配置 ===
     stock_list: List[str] = field(default_factory=list)
+    
+    # === 策略配置 ===
+    strategy_name: str = "TrendFollowing"  # 默认策略: TrendFollowing 或 MeanReversion
 
     # === 飞书云文档配置 ===
     feishu_app_id: Optional[str] = None
@@ -118,12 +121,12 @@ class Config:
     @classmethod
     def get_instance(cls) -> 'Config':
         """
-        获取配置单例实例
+        獲取配置單例實例
         
-        单例模式确保：
-        1. 全局只有一个配置实例
-        2. 配置只从环境变量加载一次
-        3. 所有模块共享相同配置
+        單例模式確保：
+        1. 全局只有一個配置實例
+        2. 配置只從環境變數加載一次
+        3. 所有模塊共享相同配置
         """
         if cls._instance is None:
             cls._instance = cls._load_from_env()
@@ -142,6 +145,9 @@ class Config:
         # 加载项目根目录下的 .env 文件
         env_path = Path(__file__).parent / '.env'
         load_dotenv(dotenv_path=env_path)
+        
+        # 解析策略名称
+        strategy_name = os.getenv('STRATEGY_NAME', 'TrendFollowing')
         
         # 解析自选股列表（逗号分隔）
         stock_list_str = os.getenv('STOCK_LIST', '')
@@ -164,6 +170,7 @@ class Config:
         
         return cls(
             stock_list=stock_list,
+            strategy_name=strategy_name,
             feishu_app_id=os.getenv('FEISHU_APP_ID'),
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
             feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),

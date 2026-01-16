@@ -1,4 +1,4 @@
-# 📈 A股智能分析系统
+# 📈 台股智能分析系統
 
 [![GitHub stars](https://img.shields.io/github/stars/ZhuLinsen/daily_stock_analysis?style=social)](https://github.com/ZhuLinsen/daily_stock_analysis/stargazers)
 [![CI](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml)
@@ -6,27 +6,27 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 
-> 🤖 基于 AI 大模型的 A 股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/邮箱
+> 🤖 基於 AI 大模型的台灣股票智能分析系統，每日自動分析並推送「決策儀表盤」到企業微信/飛書/Telegram/郵箱
 
-![运行效果演示](./sources/all_2026-01-13_221547.gif)
+![運行效果演示](./sources/all_2026-01-13_221547.gif)
 
 ## ✨ 功能特性
 
 ### 🎯 核心功能
-- **AI 决策仪表盘** - 一句话核心结论 + 精确买卖点位 + 检查清单
-- **多维度分析** - 技术面 + 筹码分布 + 舆情情报 + 实时行情
-- **大盘复盘** - 每日市场概览、板块涨跌、北向资金
-- **多渠道推送** - 支持企业微信、飞书、Telegram、邮件（自动识别）
-- **零成本部署** - GitHub Actions 免费运行，无需服务器
-- **💰 白嫖 Gemini API** - Google AI Studio 提供免费额度，个人使用完全够用
-- **🔄 多模型支持** - 支持 OpenAI 兼容 API（DeepSeek、通义千问等）作为备选
+- **AI 決策儀表板** - 一句話核心結論 + 精確買賣點位 + 檢查清單
+- **多維度分析** - 技術面 + 籌碼分佈 + 輿情情報 + 實時行情
+- **大盤復盤** - 每日市場概覽、板塊漲跌、北向資金
+- **多渠道推送** - 支援企業微信、飛書、Telegram、郵件（自動識別）
+- **零成本部署** - GitHub Actions 免費運行，無需伺服器
+- **💰 白嫖 Gemini API** - Google AI Studio 提供免費額度，個人使用完全夠用
+- **🔄 多模型支援** - 支援 OpenAI 兼容 API（DeepSeek、通義千問等）作為備選
 
-### 📊 数据来源
-- **行情数据**: AkShare（免费）、Tushare、Baostock、YFinance
-- **新闻搜索**: Tavily、SerpAPI
+### 📊 數據來源
+- **行情數據**: YFinance（台股專用）、AkShare、Tushare（A 股備選）
+- **新聞搜索**: Tavily、SerpAPI
 - **AI 分析**: 
-  - 主力：Google Gemini（gemini-3-flash-preview）—— [免费获取](https://aistudio.google.com/)
-  - 备选：应大家要求，也支持了OpenAI 兼容 API（DeepSeek、通义千问、Moonshot 等）
+  - 主力：Google Gemini（gemini-3-flash-preview）—— [免費獲取](https://aistudio.google.com/)
+  - 備選：支持 OpenAI 兼容 API（DeepSeek、通義千問、Moonshot 等）
 
 ### 🛡️ 交易理念内置
 - ❌ **严禁追高** - 乖离率 > 5% 自动标记「危险」
@@ -90,12 +90,12 @@
 
 **其他配置**
 
-| Secret 名称 | 说明 | 必填 |
+| Secret 名稱 | 說明 | 必填 |
 |------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
-| `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
-| `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 备用搜索 | 可选 |
-| `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/) Token | 可选 |
+| `STOCK_LIST` | 自選股代碼，如 `2330.TW,2317.TW,2454.TW` | ✅ |
+| `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新聞搜索） | 推薦 |
+| `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 備用搜索 | 可選 |
+| `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/) Token（台股不需要） | 可選 |
 
 #### 3. 启用 Actions
 

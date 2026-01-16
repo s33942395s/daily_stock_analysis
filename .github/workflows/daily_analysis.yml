@@ -1,9 +1,10 @@
 name: 每日股票分析
 
 on:
-  # 定时触发 - 每天北京时间 18:00 (UTC 10:00)
+  # 定时触发 - 每天台北时间 14:00 (UTC 06:00)
+  # 台股收盘时间 13:30，14:00 执行分析
   schedule:
-    - cron: '0 10 * * 1-5'  # 周一到周五，UTC 10:00 = 北京时间 18:00
+    - cron: '0 6 * * 1-5'  # 周一到周五，UTC 06:00 = 台北时间 14:00
   
   # 手动触发
   workflow_dispatch:
@@ -82,7 +83,8 @@ jobs:
 
           
           # 自选股列表 (从 secrets 或使用默认值)
-          STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}
+          # 默認：台積電
+          STOCK_LIST: ${{ secrets.STOCK_LIST || '2330.TW' }}
           
           # 其他配置
           LOG_LEVEL: INFO
