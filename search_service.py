@@ -514,27 +514,29 @@ class SearchService:
         """
         results = {}
         search_count = 0
+        now = datetime.now()
+        report_year = now.year - 1
         
         # 定义搜索维度
         search_dimensions = [
             {
                 'name': 'latest_news',
-                'query': f"{stock_name} {stock_code} 最新 新闻 2026年1月",
+                'query': f"{stock_name} {stock_code} 最新 新闻 近30天",
                 'desc': '最新消息'
             },
             {
                 'name': 'risk_check', 
                 'query': f"{stock_name} 减持 处罚 利空 风险",
-                'desc': '风险排查'
+                'desc': '風險排查'
             },
             {
                 'name': 'earnings',
-                'query': f"{stock_name} 年报预告 业绩预告 业绩快报 2025年报",
-                'desc': '业绩预期'
+                'query': f"{stock_name} 年报预告 业绩预告 业绩快报 {report_year}年",
+                'desc': '業績預期'
             },
         ]
         
-        logger.info(f"开始多维度情报搜索: {stock_name}({stock_code})")
+        logger.info(f"開始多維度情報搜索: {stock_name}({stock_code})")
         
         # 轮流使用不同的搜索引擎
         provider_index = 0
@@ -551,18 +553,18 @@ class SearchService:
             provider = available_providers[provider_index % len(available_providers)]
             provider_index += 1
             
-            logger.info(f"[情报搜索] {dim['desc']}: 使用 {provider.name}")
+            logger.info(f"[情報搜索] {dim['desc']}: 使用 {provider.name}")
             
             response = provider.search(dim['query'], max_results=3)
             results[dim['name']] = response
             search_count += 1
             
             if response.success:
-                logger.info(f"[情报搜索] {dim['desc']}: 获取 {len(response.results)} 条结果")
+                logger.info(f"[情報搜索] {dim['desc']}: 获取 {len(response.results)} 条結果")
             else:
-                logger.warning(f"[情报搜索] {dim['desc']}: 搜索失败 - {response.error_message}")
+                logger.warning(f"[情報搜索] {dim['desc']}: 搜索失敗 - {response.error_message}")
             
-            # 短暂延迟避免请求过快
+            # 短暫延迟避免請求過快
             time.sleep(0.5)
         
         return results
@@ -590,29 +592,29 @@ class SearchService:
                     lines.append(f"  {i}. {r.title}{date_str}")
                     lines.append(f"     {r.snippet[:100]}...")
             else:
-                lines.append("  未找到相关消息")
+                lines.append("  未找到相關消息")
         
         # 风险排查
         if 'risk_check' in intel_results:
             resp = intel_results['risk_check']
-            lines.append(f"\n⚠️ 风险排查 (来源: {resp.provider}):")
+            lines.append(f"\n⚠️ 風險排查 (來源: {resp.provider}):")
             if resp.success and resp.results:
                 for i, r in enumerate(resp.results[:3], 1):
                     lines.append(f"  {i}. {r.title}")
                     lines.append(f"     {r.snippet[:100]}...")
             else:
-                lines.append("  未发现明显风险信号")
+                lines.append("  未發現明顯風險信號")
         
-        # 业绩预期
+        # 业绩預期
         if 'earnings' in intel_results:
             resp = intel_results['earnings']
-            lines.append(f"\n📊 业绩预期 (来源: {resp.provider}):")
+            lines.append(f"\n📊 業績預期 (來源: {resp.provider}):")
             if resp.success and resp.results:
                 for i, r in enumerate(resp.results[:3], 1):
                     lines.append(f"  {i}. {r.title}")
                     lines.append(f"     {r.snippet[:100]}...")
             else:
-                lines.append("  未找到业绩相关信息")
+                lines.append("  未發現業績相關信息")
         
         return "\n".join(lines)
     

@@ -39,6 +39,7 @@ from datetime import datetime, date, timezone, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+from tqdm import tqdm
 from feishu_doc import FeishuDocManager
 
 from config import get_config, Config
@@ -480,15 +481,27 @@ class StockAnalysisPipeline:
                 for code in stock_codes
             }
             
-            # 收集結果
-            for future in as_completed(future_to_code):
-                code = future_to_code[future]
-                try:
-                    result = future.result()
-                    if result:
-                        results.append(result)
-                except Exception as e:
-                    logger.error(f"[{code}] 任務執行失敗: {e}")
+            # 使用 tqdm 進度條收集結果
+            with tqdm(
+                total=len(stock_codes),
+                desc="🤖 AI 分析進度",
+                unit="股",
+                ncols=80,
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+            ) as pbar:
+                for future in as_completed(future_to_code):
+                    code = future_to_code[future]
+                    try:
+                        result = future.result()
+                        if result:
+                            results.append(result)
+                            pbar.set_postfix_str(f"✅ {code}")
+                        else:
+                            pbar.set_postfix_str(f"⚠️ {code}")
+                    except Exception as e:
+                        logger.error(f"[{code}] 任務執行失敗: {e}")
+                        pbar.set_postfix_str(f"❌ {code}")
+                    pbar.update(1)
         
         # 統計
         elapsed_time = time.time() - start_time

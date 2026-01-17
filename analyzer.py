@@ -772,7 +772,7 @@ class GeminiAnalyzer:
                 "max_output_tokens": 8192,
             }
             
-            logger.info(f"[LLM調用] 開始調用 Gemini API (temperature={generation_config['temperature']}, max_tokens={generation_config['max_output_tokens']})...")
+            logger.info(f"[LLM調用] 開始調用  API (temperature={generation_config['temperature']}, max_tokens={generation_config['max_output_tokens']})...")
             
             # 使用帶重試的 API 調用
             start_time = time.time()
@@ -780,7 +780,7 @@ class GeminiAnalyzer:
             elapsed = time.time() - start_time
             
             # 記錄響應信息
-            logger.info(f"[LLM返回] Gemini API 響應成功, 耗時 {elapsed:.2f}s, 響應長度 {len(response_text)} 字符")
+            logger.info(f"[LLM返回]  API 響應成功, 耗時 {elapsed:.2f}s, 響應長度 {len(response_text)} 字符")
             
             # 記錄響應預覽（INFO級別）和完整響應（DEBUG級別）
             response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
@@ -1220,4 +1220,4 @@ if __name__ == "__main__":
         result = analyzer.analyze(test_context)
         print(f"分析結果: {result.to_dict()}")
     else:
-        print("Gemini API 未配置，跳過測試")
+        print(" API 未配置，跳過測試")
