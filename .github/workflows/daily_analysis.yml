@@ -18,6 +18,7 @@ on:
           - full          # 完整分析（股票+大盘）
           - market-only   # 仅大盘复盘
           - stocks-only   # 仅股票分析
+          - scan-tw50     # 扫描台股 50 推荐
 
 jobs:
   analyze:
@@ -104,6 +105,8 @@ jobs:
             python main.py --market-review
           elif [ "$MODE" = "stocks-only" ]; then
             python main.py --no-market-review
+          elif [ "$MODE" = "scan-tw50" ]; then
+            python main.py --scan-tw50
           else
             python main.py
           fi

@@ -636,6 +636,12 @@ def parse_arguments() -> argparse.Namespace:
         help='跳過大盤復盤分析'
     )
     
+    parser.add_argument(
+        '--scan-tw50',
+        action='store_true',
+        help='掃描台股 50 成分股，篩選買入信號'
+    )
+    
     return parser.parse_args()
 
 
@@ -808,6 +814,10 @@ def main() -> int:
     if args.stocks:
         stock_codes = [code.strip() for code in args.stocks.split(',') if code.strip()]
         logger.info(f"使用命令行指定的股票列表: {stock_codes}")
+    elif args.scan_tw50:
+        from tw50_stocks import get_tw50_stocks
+        stock_codes = get_tw50_stocks()
+        logger.info(f"使用台股 50 成分股清單: 共 {len(stock_codes)} 檔")
     
     try:
         # 模式1: 僅大盤復盤

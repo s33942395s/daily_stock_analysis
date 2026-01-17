@@ -54,7 +54,8 @@ class TaiwanStockFetcher(BaseFetcher):
     Code Format:
     - Listed: 2330.TW (TSMC)
     - OTC: 4956.TWO
-    - Also accepts pure numbers: 2330 (auto-add .TW)
+    - ETF: 00923.TW, 0050.TW, 006208.TW
+    - Also accepts pure numbers: 2330, 00923 (auto-add .TW)
     """
     
     name = "TaiwanStockFetcher"
@@ -88,8 +89,9 @@ class TaiwanStockFetcher(BaseFetcher):
         # Remove other potential suffixes
         code = re.sub(r'\.(SS|SZ|SH)$', '', code, flags=re.IGNORECASE)
         
-        # Pure 4-digit number, add .TW (listed market)
-        if code.isdigit() and len(code) == 4:
+        # Pure 4-6 digit number, add .TW (listed market)
+        # Supports: stocks (4 digits), ETF (4-6 digits like 0050, 00923, 006208)
+        if code.isdigit() and 4 <= len(code) <= 6:
             return f"{code}.TW"
         
         # Other cases, try adding .TW
@@ -101,7 +103,7 @@ class TaiwanStockFetcher(BaseFetcher):
         Check if it's a Taiwan stock code
         
         Taiwan stock characteristics:
-        - 4 digits
+        - 4-6 digits (stocks: 4 digits, ETF: 4-6 digits)
         - Suffix .TW or .TWO
         """
         code = stock_code.strip().upper()
@@ -110,10 +112,10 @@ class TaiwanStockFetcher(BaseFetcher):
         if code.endswith('.TW') or code.endswith('.TWO'):
             # Extract number part
             number_part = code.split('.')[0]
-            return number_part.isdigit() and len(number_part) == 4
+            return number_part.isdigit() and 4 <= len(number_part) <= 6
         
-        # Pure 4-digit number
-        return code.isdigit() and len(code) == 4
+        # Pure 4-6 digit number
+        return code.isdigit() and 4 <= len(code) <= 6
     
     @retry(
         stop=stop_after_attempt(3),
