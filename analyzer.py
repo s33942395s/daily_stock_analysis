@@ -225,10 +225,12 @@ class GeminiAnalyzer:
 - 均線發散上行優於均線粘合
 - 趨勢強度判斷：看均線間距是否在擴大
 
-### 3. 效率優先（籌碼結構）
-- 關注籌碼集中度：90%集中度 < 15% 表示籌碼集中
-- 獲利比例分析：70-90% 獲利盤時需警惕獲利回吐
-- 平均成本與現價關係：現價高於平均成本 5-15% 為健康
+### 3. 效率優先（籌碼結構 - 三大法人）
+- 外資連續買超：籌碼往法人集中，籌碼健康
+- 外資連續賣超：散戶接盤，需警惕
+- 投信買超：可能被納入基金持股
+- 三大法人同步買超：強烈多頭信號
+- 三大法人同步賣超：強烈空頭警告
 
 ### 4. 買點偏好（回踩支撑）
 - **最佳買點**：縮量回踩 MA5 獲得支撑
@@ -287,10 +289,11 @@ class GeminiAnalyzer:
                 "volume_meaning": "量能含義解讀（如：縮量回調表示拋壓減輕）"
             },
             "chip_structure": {
-                "profit_ratio": 獲利比例,
-                "avg_cost": 平均成本,
-                "concentration": 籌碼集中度,
-                "chip_health": "健康/一般/警惕"
+                "foreign_net": "外資淨買賣超（張）",
+                "trust_net": "投信淨買賣超（張）",
+                "dealer_net": "自營商淨買賣超（張）",
+                "total_net": "三大法人合計（張）",
+                "chip_health": "健康（法人買超）/一般（法人持平）/警惕（法人賣超）"
             }
         },
         
@@ -319,7 +322,7 @@ class GeminiAnalyzer:
                 "✅/⚠️/❌ 檢查項2：乖離率<5%",
                 "✅/⚠️/❌ 檢查項3：量能配合",
                 "✅/⚠️/❌ 檢查項4：無重大利空",
-                "✅/⚠️/❌ 檢查項5：籌碼健康"
+                "✅/⚠️/❌ 檢查項5：三大法人買超（籌碼健康）"
             ]
         }
     },
@@ -901,6 +904,34 @@ class GeminiAnalyzer:
 | 70%籌碼集中度 | {chip.get('concentration_70', 0):.2%} | |
 | 籌碼狀態 | {chip.get('chip_status', '未知')} | |
 """
+        
+        # 添加三大法人買賣超數據（台股籌碼面指標）
+        if 'institutional_investors' in context:
+            inst = context['institutional_investors']
+            foreign_net = inst.get('foreign_net', 0)
+            trust_net = inst.get('trust_net', 0)
+            dealer_net = inst.get('dealer_net', 0)
+            total_net = inst.get('total_net', 0)
+            
+            # 判斷籌碼健康狀態
+            if total_net > 500:
+                chip_health = "✅ 健康（法人買超）"
+            elif total_net < -500:
+                chip_health = "⚠️ 警惕（法人賣超）"
+            else:
+                chip_health = "➖ 一般（法人持平）"
+            
+            prompt += f"""
+### 三大法人買賣超（台股籌碼面指標）
+| 法人 | 淨買賣超（張） | 解讀 |
+|------|---------------|------|
+| **外資** | **{foreign_net:+,}** | {'買超' if foreign_net > 0 else '賣超' if foreign_net < 0 else '持平'} |
+| **投信** | **{trust_net:+,}** | {'買超' if trust_net > 0 else '賣超' if trust_net < 0 else '持平'} |
+| **自營商** | **{dealer_net:+,}** | {'買超' if dealer_net > 0 else '賣超' if dealer_net < 0 else '持平'} |
+| **三大法人合計** | **{total_net:+,}** | {chip_health} |
+| 數據日期 | {inst.get('date', 'N/A')} | |
+"""
+
         
         # 添加趨勢分析結果（基於交易理念的預判）
         if 'trend_analysis' in context:

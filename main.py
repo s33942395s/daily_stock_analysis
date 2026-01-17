@@ -266,6 +266,17 @@ class StockAnalysisPipeline:
             except Exception as e:
                 logger.warning(f"[{code}] 趨勢分析失敗: {e}")
             
+            # Step 3.5: 獲取三大法人買賣超數據（籌碼面）
+            institutional_data = None
+            try:
+                institutional_data = self.fetcher_manager.get_institutional_data(code)
+                if institutional_data:
+                    logger.info(f"[{code}] 三大法人: 外資 {institutional_data['foreign_net']:+,}張, "
+                               f"投信 {institutional_data['trust_net']:+,}張, "
+                               f"自營商 {institutional_data['dealer_net']:+,}張")
+            except Exception as e:
+                logger.warning(f"[{code}] 獲取三大法人數據失敗: {e}")
+            
             # Step 4: 多維度情報搜索（最新消息+風險排查+業績預期）
             news_context = None
             if self.search_service.is_available:
@@ -296,11 +307,12 @@ class StockAnalysisPipeline:
                 logger.warning(f"[{code}] 無法獲取分析上下文，跳過分析")
                 return None
             
-            # Step 6: Enhance context (add trend analysis and stock name)
+            # Step 6: Enhance context (add trend analysis, stock name, institutional data)
             enhanced_context = self._enhance_context(
                 context, 
                 trend_result,
-                stock_name
+                stock_name,
+                institutional_data
             )
             
             # Step 7: 調用 AI 分析（傳入增強的上下文和新聞）
@@ -317,18 +329,19 @@ class StockAnalysisPipeline:
         self,
         context: Dict[str, Any],
         trend_result: Optional[TrendAnalysisResult],
-        stock_name: str = ""
+        stock_name: str = "",
+        institutional_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         增強分析上下文（台股版）
         
-        將趨勢分析結果和股票名稱添加到上下文中
-        注意：實時行情和籌碼分佈已移除（A股特定）
+        將趨勢分析結果、股票名稱、三大法人數據添加到上下文中
         
         Args:
             context: 原始上下文
             trend_result: 趨勢分析結果
             stock_name: 股票名稱
+            institutional_data: 三大法人買賣超數據
             
         Returns:
             增強後的上下文
@@ -355,7 +368,18 @@ class StockAnalysisPipeline:
                 'risk_factors': trend_result.risk_factors,
             }
         
+        # 添加三大法人買賣超數據（籌碼面）
+        if institutional_data:
+            enhanced['institutional_investors'] = {
+                'foreign_net': institutional_data.get('foreign_net', 0),
+                'trust_net': institutional_data.get('trust_net', 0),
+                'dealer_net': institutional_data.get('dealer_net', 0),
+                'total_net': institutional_data.get('total_net', 0),
+                'date': institutional_data.get('date', ''),
+            }
+        
         return enhanced
+
     
     def _describe_volume_ratio(self, volume_ratio: float) -> str:
         """

@@ -88,6 +88,23 @@ class ChannelDetector:
         return names.get(channel, "未知渠道")
 
 
+def _is_buy_advice(advice: str) -> bool:
+    """判斷是否為買入類建議（支持模糊匹配）"""
+    buy_keywords = ['買入', '加倉', '強烈買入']
+    return any(kw in advice for kw in buy_keywords)
+
+
+def _is_sell_advice(advice: str) -> bool:
+    """判斷是否為賣出類建議（支持模糊匹配）"""
+    sell_keywords = ['賣出', '減倉', '強烈賣出']
+    return any(kw in advice for kw in sell_keywords)
+
+
+def _is_hold_advice(advice: str) -> bool:
+    """判斷是否為持有/觀望類建議（支持模糊匹配）"""
+    hold_keywords = ['持有', '觀望']
+    return any(kw in advice for kw in hold_keywords)
+
 class NotificationService:
     """
     通知服務
@@ -233,10 +250,10 @@ class NotificationService:
             reverse=True
         )
         
-        # 統計信息
-        buy_count = sum(1 for r in results if r.operation_advice in ['買入', '加倉', '強烈買入'])
-        sell_count = sum(1 for r in results if r.operation_advice in ['賣出', '減倉', '強烈賣出'])
-        hold_count = sum(1 for r in results if r.operation_advice in ['持有', '觀望'])
+        # 統計信息（使用模糊匹配支持複合建議如"持有/觀望"）
+        buy_count = sum(1 for r in results if _is_buy_advice(r.operation_advice))
+        sell_count = sum(1 for r in results if _is_sell_advice(r.operation_advice))
+        hold_count = sum(1 for r in results if _is_hold_advice(r.operation_advice))
         avg_score = sum(r.sentiment_score for r in results) / len(results) if results else 0
         
         report_lines.extend([
@@ -440,9 +457,9 @@ class NotificationService:
         sorted_results = sorted(results, key=lambda x: x.sentiment_score, reverse=True)
         
         # 統計信息
-        buy_count = sum(1 for r in results if r.operation_advice in ['買入', '加倉', '強烈買入'])
-        sell_count = sum(1 for r in results if r.operation_advice in ['賣出', '減倉', '強烈賣出'])
-        hold_count = sum(1 for r in results if r.operation_advice in ['持有', '觀望'])
+        buy_count = sum(1 for r in results if _is_buy_advice(r.operation_advice))
+        sell_count = sum(1 for r in results if _is_sell_advice(r.operation_advice))
+        hold_count = sum(1 for r in results if _is_hold_advice(r.operation_advice))
         
         report_lines = [
             f"# 🎯 {report_date} 決策儀表板",

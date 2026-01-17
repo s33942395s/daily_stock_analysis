@@ -19,7 +19,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 import pandas as pd
 import numpy as np
@@ -262,17 +262,22 @@ class DataFetcherManager:
         """
         from .taiwan_stock_fetcher import TaiwanStockFetcher
         from .yfinance_fetcher import YfinanceFetcher
+        from .institutional_fetcher import InstitutionalFetcher
         
         self._fetchers = [
             TaiwanStockFetcher(),
             YfinanceFetcher(),
         ]
         
+        # 初始化籌碼數據獲取器
+        self._institutional_fetcher = InstitutionalFetcher()
+        
         # Sort by priority
         self._fetchers.sort(key=lambda f: f.priority)
         
         logger.info(f"Initialized {len(self._fetchers)} data sources: " + 
                    ", ".join([f.name for f in self._fetchers]))
+
     
     def add_fetcher(self, fetcher: BaseFetcher) -> None:
         """Add data source and re-sort"""
@@ -356,4 +361,25 @@ class DataFetcherManager:
                 name = fetcher.get_stock_name(stock_code)
                 if name:
                     return name
+        return None
+    
+    def get_institutional_data(self, stock_code: str, date: Optional[str] = None) -> Optional[Dict]:
+        """
+        獲取個股三大法人買賣超數據
+        
+        Args:
+            stock_code: 股票代碼
+            date: 日期 (YYYY-MM-DD，預設為最近交易日)
+            
+        Returns:
+            {
+                'foreign_net': 外資淨買賣超（張）,
+                'trust_net': 投信淨買賣超（張）,
+                'dealer_net': 自營商淨買賣超（張）,
+                'total_net': 三大法人合計,
+            }
+            如果獲取失敗則返回 None
+        """
+        if hasattr(self, '_institutional_fetcher') and self._institutional_fetcher:
+            return self._institutional_fetcher.get_institutional_data(stock_code, date)
         return None
