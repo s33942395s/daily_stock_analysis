@@ -338,3 +338,22 @@ class DataFetcherManager:
     def available_fetchers(self) -> List[str]:
         """Return list of available source names"""
         return [f.name for f in self._fetchers]
+    
+    def get_stock_name(self, stock_code: str) -> Optional[str]:
+        """
+        獲取股票名稱
+        
+        依次嘗試各數據源的 get_stock_name 方法，返回第一個成功的結果
+        
+        Args:
+            stock_code: 股票代碼
+            
+        Returns:
+            股票名稱，如果所有數據源都失敗則返回 None
+        """
+        for fetcher in self._fetchers:
+            if hasattr(fetcher, 'get_stock_name'):
+                name = fetcher.get_stock_name(stock_code)
+                if name:
+                    return name
+        return None

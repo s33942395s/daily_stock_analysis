@@ -688,7 +688,7 @@ if __name__ == "__main__":
     
     if service.is_available:
         print("=== 测试股票新闻搜索 ===")
-        response = service.search_stock_news("300389", "艾比森")
+        response = service.search_stock_news("6934", "心誠鎂")
         print(f"搜索状态: {'成功' if response.success else '失败'}")
         print(f"搜索引擎: {response.provider}")
         print(f"结果数量: {len(response.results)}")

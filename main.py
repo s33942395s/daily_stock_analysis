@@ -236,16 +236,16 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失敗）
         """
         try:
-            # 獲取股票名稱（優先從實時行情獲取真實名稱）
+            # 獲取股票名稱
+            # 優先順序: 1. STOCK_NAME_MAP 映射表  2. API 自動獲取  3. 股票代碼
             stock_name = STOCK_NAME_MAP.get(code, '')
             
-            # Step 1: Get stock name from map (Taiwan stocks)
-            # Note: YFinance doesn't provide realtime Chinese stock names easily
-            # For Taiwan stocks, we use the stock code as display name if no mapping
             if not stock_name:
-                stock_name = f'{code}'
+                # 嘗試從數據源自動獲取股票名稱
+                stock_name = self.fetcher_manager.get_stock_name(code) or code
             
             logger.info(f"[{code}] {stock_name} - Using Taiwan stock analysis")
+
             
             # Step 2: Skip chip distribution (not available for Taiwan stocks via YFinance)
             # Taiwan uses institutional investor data instead, which requires different API

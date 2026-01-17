@@ -235,7 +235,38 @@ class TaiwanStockFetcher(BaseFetcher):
         df = df[existing_cols]
         
         return df
-
+    
+    def get_stock_name(self, stock_code: str) -> Optional[str]:
+        """
+        獲取台股股票名稱
+        
+        使用 yfinance 的 info 屬性獲取股票名稱，
+        優先返回 shortName 或 longName
+        
+        Args:
+            stock_code: 股票代碼 (如 2330, 2330.TW)
+            
+        Returns:
+            股票名稱，如 "Taiwan Semiconductor Manufacturing"
+            如果獲取失敗則返回 None
+        """
+        import yfinance as yf
+        
+        normalized_code = self._normalize_stock_code(stock_code)
+        
+        try:
+            ticker = yf.Ticker(normalized_code)
+            info = ticker.info
+            
+            # 優先順序: shortName > longName (shortName 通常更簡潔)
+            name = info.get('shortName') or info.get('longName')
+            if name:
+                logger.info(f"[{stock_code}] 獲取股票名稱: {name}")
+                return name
+            return None
+        except Exception as e:
+            logger.warning(f"[{stock_code}] 獲取股票名稱失敗: {e}")
+            return None
 
 if __name__ == "__main__":
     # Test code
