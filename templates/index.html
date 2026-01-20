@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票智能分析系統</title>
+    <meta name="description" content="AI 驅動的台股/美股智能分析工具">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">📊</span>
+                <span class="logo-text">StockAI</span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="nav-link active">分析</a>
+                <a href="#" class="nav-link">歷史</a>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Analysis Section -->
+            <section class="analysis-section">
+                <div class="section-header">
+                    <h1 class="section-title">智能股票分析</h1>
+                    <p class="section-subtitle">輸入股票代碼，AI 將為您提供專業分析報告</p>
+                </div>
+
+                <!-- Search Form -->
+                <form id="analyzeForm" class="search-form">
+                    <div class="search-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="stockCode" 
+                            class="search-input" 
+                            placeholder="輸入股票代碼 (如 AAPL, 2330)" 
+                            autocomplete="off"
+                            required
+                        >
+                        <div class="market-badge" id="marketBadge">自動偵測</div>
+                    </div>
+                    <button type="submit" class="search-button" id="analyzeBtn">
+                        <span class="button-text">分析</span>
+                        <span class="button-loading" style="display: none;">
+                            <span class="spinner"></span>
+                            分析中...
+                        </span>
+                    </button>
+                </form>
+
+                <!-- Quick Examples -->
+                <div class="quick-examples">
+                    <span class="examples-label">熱門：</span>
+                    <button type="button" class="example-tag" data-code="AAPL">AAPL</button>
+                    <button type="button" class="example-tag" data-code="TSLA">TSLA</button>
+                    <button type="button" class="example-tag" data-code="NVDA">NVDA</button>
+                    <button type="button" class="example-tag" data-code="2330">2330</button>
+                    <button type="button" class="example-tag" data-code="2317">2317</button>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="results-section" style="display: none;">
+                <!-- Stock Header -->
+                <div class="stock-header">
+                    <div class="stock-info">
+                        <h2 class="stock-name" id="stockName">-</h2>
+                        <span class="stock-code" id="stockCodeDisplay">-</span>
+                        <span class="market-tag" id="marketTag">-</span>
+                    </div>
+                    <div class="score-badge" id="scoreBadge">
+                        <span class="score-value" id="scoreValue">-</span>
+                        <span class="score-label">評分</span>
+                    </div>
+                </div>
+
+                <!-- Analysis Cards -->
+                <div class="cards-grid">
+                    <!-- Core Analysis Card -->
+                    <div class="card card-primary">
+                        <div class="card-header">
+                            <span class="card-icon">🎯</span>
+                            <span class="card-title">核心結論</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="advice-badge" id="adviceBadge">-</div>
+                            <p class="trend-text" id="trendText">-</p>
+                            <p class="logic-text" id="logicText">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Key Signals Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-icon">📡</span>
+                            <span class="card-title">關鍵信號</span>
+                        </div>
+                        <div class="card-body">
+                            <ul class="signal-list" id="signalList">
+                                <li>載入中...</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Risk Warnings Card -->
+                    <div class="card card-warning">
+                        <div class="card-header">
+                            <span class="card-icon">⚠️</span>
+                            <span class="card-title">風險警示</span>
+                        </div>
+                        <div class="card-body">
+                            <ul class="risk-list" id="riskList">
+                                <li>載入中...</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Strategy Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-icon">🎯</span>
+                            <span class="card-title">狙擊策略</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="strategy-content" id="strategyContent">載入中...</div>
+                        </div>
+                    </div>
+
+                    <!-- Position Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-icon">💰</span>
+                            <span class="card-title">持倉建議</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="position-content" id="positionContent">載入中...</div>
+                        </div>
+                    </div>
+
+                    <!-- Checklist Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-icon">✅</span>
+                            <span class="card-title">投資檢查清單</span>
+                        </div>
+                        <div class="card-body">
+                            <ul class="checklist" id="checklist">
+                                <li>載入中...</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confidence & Timestamp -->
+                <div class="analysis-footer">
+                    <span class="confidence" id="confidence">置信度: -</span>
+                    <span class="timestamp" id="timestamp">分析時間: -</span>
+                </div>
+            </section>
+
+            <!-- Error Message -->
+            <div id="errorMessage" class="error-message" style="display: none;">
+                <span class="error-icon">❌</span>
+                <span class="error-text">發生錯誤</span>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2026 StockAI - 股票智能分析系統 | 支援台股 & 美股</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

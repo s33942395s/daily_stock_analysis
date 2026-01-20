@@ -25,6 +25,7 @@ import yfinance as yf
 
 from config import get_config
 from search_service import SearchService
+from data_provider.yfinance_shared import YFINANCE_LOCK
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +138,9 @@ class MarketAnalyzer:
             
             for code, name in self.MAIN_INDICES.items():
                 try:
-                    ticker = yf.Ticker(code)
-                    hist = ticker.history(period="2d")
+                    with YFINANCE_LOCK:
+                        ticker = yf.Ticker(code)
+                        hist = ticker.history(period="2d")
                     
                     if hist is not None and len(hist) >= 1:
                         # 獲取最新數據
@@ -200,8 +202,9 @@ class MarketAnalyzer:
             
             for stock in sample_stocks:
                 try:
-                    ticker = yf.Ticker(stock)
-                    hist = ticker.history(period="2d")
+                    with YFINANCE_LOCK:
+                        ticker = yf.Ticker(stock)
+                        hist = ticker.history(period="2d")
                     
                     if hist is not None and len(hist) >= 2:
                         current = hist.iloc[-1]['Close']

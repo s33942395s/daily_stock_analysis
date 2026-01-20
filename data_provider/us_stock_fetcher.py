@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-TaiwanStockFetcher - Taiwan Stock Data Source (Priority 1)
+USStockFetcher - US Stock Data Source (Priority 2)
 ===================================
 
-Data Source: Yahoo Finance (Taiwan stocks)
-Features: Optimized for Taiwan stock market
-Position: Primary data source for Taiwan stock analysis
+Data Source: Yahoo Finance (US stocks)
+Features: Optimized for US stock market (NYSE, NASDAQ)
+Position: Secondary data source after Taiwan stocks
 
 Key Strategies:
-1. Automatic Taiwan stock code format handling (XXXX.TW / XXXX.TWO)
-2. Support both listed (.TW) and OTC (.TWO) stocks
-3. Exponential backoff retry on failure
-4. Data standardization
+1. Automatic US stock code format handling
+2. Support NYSE and NASDAQ listed stocks
+3. Support ETFs (SPY, QQQ, etc.)
+4. Exponential backoff retry on failure
+5. Data standardization
 
-Taiwan Stock Market Hours:
-- Open: 09:00
-- Close: 13:30
-- No T+1 restriction (can buy and sell same day)
+US Stock Market Hours (ET):
+- Regular: 09:30 - 16:00
+- Pre-market: 04:00 - 09:30
+- After-hours: 16:00 - 20:00
 """
 
 import logging
@@ -40,92 +41,101 @@ from .yfinance_shared import YFINANCE_LOCK, yfinance_end_date_inclusive
 logger = logging.getLogger(__name__)
 
 
-class TaiwanStockFetcher(BaseFetcher):
+class USStockFetcher(BaseFetcher):
     """
-    Taiwan Stock Data Source Implementation
+    US Stock Data Source Implementation
     
-    Priority: 1 (Highest)
-    Data Source: Yahoo Finance (Taiwan)
+    Priority: 2 (After Taiwan stocks, before generic YFinance)
+    Data Source: Yahoo Finance (US)
     
     Key Strategies:
-    - Automatic stock code format conversion
-    - Support listed/OTC stocks
+    - Automatic stock code format validation
+    - Support NYSE, NASDAQ stocks
+    - Support ETFs and ADRs
     - Data standardization
     
     Code Format:
-    - Listed: 2330.TW (TSMC)
-    - OTC: 4956.TWO
-    - ETF: 00923.TW, 0050.TW, 006208.TW
-    - Also accepts pure numbers: 2330, 00923 (auto-add .TW)
+    - Stocks: AAPL, MSFT, GOOGL, TSLA
+    - ETFs: SPY, QQQ, VTI, VOO
+    - Class shares: BRK.A, BRK.B
     """
     
-    name = "TaiwanStockFetcher"
-    priority = 1
+    name = "USStockFetcher"
+    priority = 2  # Higher than generic YFinanceFetcher (5), lower than Taiwan (1)
+    
+    # Common US stock exchanges/indices for validation
+    COMMON_US_TICKERS = {
+        # Top tech stocks
+        'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'NVDA', 'TSLA',
+        # Popular ETFs
+        'SPY', 'QQQ', 'VTI', 'VOO', 'IWM', 'DIA', 'ARKK',
+        # Other major stocks
+        'JPM', 'V', 'MA', 'JNJ', 'WMT', 'PG', 'UNH', 'HD', 'BAC', 'XOM',
+        'CVX', 'PFE', 'ABBV', 'KO', 'PEP', 'COST', 'MRK', 'TMO', 'AVGO',
+        'ORCL', 'CSCO', 'ACN', 'ADBE', 'CRM', 'NKE', 'MCD', 'DIS', 'NFLX',
+        'AMD', 'INTC', 'QCOM', 'TXN', 'IBM', 'GE', 'CAT', 'BA', 'UPS',
+    }
     
     def __init__(self):
-        """Initialize TaiwanStockFetcher"""
-        logger.info("Taiwan stock data source initialized (using Yahoo Finance)")
+        """Initialize USStockFetcher"""
+        logger.info("US stock data source initialized (using Yahoo Finance)")
     
     def _normalize_stock_code(self, stock_code: str) -> str:
         """
-        Standardize Taiwan stock code format
-        
-        Accepted formats:
-        1. Pure number: 2330 -> 2330.TW
-        2. With suffix: 2330.TW -> 2330.TW
-        3. OTC stock: 4956.TWO -> 4956.TWO
+        Standardize US stock code format
         
         Args:
             stock_code: Original code
             
         Returns:
-            Standardized code
-            
-        Raises:
-            DataFetchError: If the code is not a valid Taiwan stock
+            Standardized code (uppercase)
         """
         code = stock_code.strip().upper()
         
-        # Already has correct suffix
-        if code.endswith('.TW') or code.endswith('.TWO'):
-            return code
+        # Remove any accidental suffixes
+        code = re.sub(r'\.(TW|TWO|SS|SZ|SH)$', '', code, flags=re.IGNORECASE)
         
-        # Remove other potential suffixes
-        code = re.sub(r'\.(SS|SZ|SH)$', '', code, flags=re.IGNORECASE)
-        
-        # Pure 4-6 digit number, add .TW (listed market)
-        if code.isdigit() and 4 <= len(code) <= 6:
-            return f"{code}.TW"
-        
-        # If it's alphabetic (like AAPL), it's NOT a Taiwan stock
-        if code.isalpha():
-            raise DataFetchError(f"Not a Taiwan stock code: {stock_code} (appears to be US stock)")
-        
-        # Other unrecognized formats
-        raise DataFetchError(f"Unrecognized stock code format: {stock_code}")
+        return code
     
-    def _is_taiwan_stock(self, stock_code: str) -> bool:
+    def _is_us_stock(self, stock_code: str) -> bool:
         """
-        Check if it's a Taiwan stock code
+        Check if it's a US stock code
         
-        Taiwan stock characteristics:
-        - 4-6 digits (stocks: 4 digits, ETF: 4-6 digits)
-        - Suffix .TW or .TWO
-        - NOT alphabetic (US stocks like AAPL, MSFT)
+        US stock characteristics:
+        - 1-5 uppercase letters (AAPL, MSFT, BRK.B)
+        - May contain a dot for class shares (BRK.A, BRK.B)
+        - NOT a Taiwan stock format (4-6 digits)
+        
+        Args:
+            stock_code: Stock code to check
+            
+        Returns:
+            True if it appears to be a US stock
         """
         code = stock_code.strip().upper()
         
-        # US stock format (pure letters) - NOT Taiwan
-        if code.isalpha():
+        # Remove known non-US suffixes
+        code = re.sub(r'\.(TW|TWO|SS|SZ|SH)$', '', code, flags=re.IGNORECASE)
+        
+        # If it's all digits, it's likely Taiwan/China stock
+        if code.isdigit():
             return False
         
-        # Check suffix
-        if code.endswith('.TW') or code.endswith('.TWO'):
-            number_part = code.split('.')[0]
-            return number_part.isdigit() and 4 <= len(number_part) <= 6
+        # Check for Taiwan stock format (4-6 digits with optional .TW/.TWO)
+        if re.match(r'^\d{4,6}(\.TW|\.TWO)?$', stock_code, re.IGNORECASE):
+            return False
         
-        # Pure 4-6 digit number
-        return code.isdigit() and 4 <= len(code) <= 6
+        # US stock pattern: 1-5 letters, optionally followed by .A or .B
+        # Examples: AAPL, MSFT, BRK.A, BRK.B
+        if re.match(r'^[A-Z]{1,5}(\.[A-Z])?$', code):
+            return True
+        
+        # Check against known US tickers
+        base_code = code.split('.')[0]
+        if base_code in self.COMMON_US_TICKERS:
+            return True
+        
+        return False
     
     @retry(
         stop=stop_after_attempt(3),
@@ -135,28 +145,38 @@ class TaiwanStockFetcher(BaseFetcher):
     )
     def _fetch_raw_data(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """
-        Fetch raw Taiwan stock data from Yahoo Finance
+        Fetch raw US stock data from Yahoo Finance
         
         Process:
         1. Standardize stock code
-        2. Verify it's a Taiwan stock
+        2. Verify it's a US stock
         3. Call yfinance API
         4. Process returned data
+        
+        Args:
+            stock_code: Stock code (e.g. AAPL, MSFT)
+            start_date: Start date
+            end_date: End date
+            
+        Returns:
+            Raw data DataFrame
         """
         import yfinance as yf
         
         # Standardize code
         normalized_code = self._normalize_stock_code(stock_code)
         
-        # Verify Taiwan stock
-        if not self._is_taiwan_stock(normalized_code):
-            raise DataFetchError(f"Not a Taiwan stock code: {stock_code}")
+        # Verify US stock
+        if not self._is_us_stock(normalized_code):
+            raise DataFetchError(f"Not a US stock code: {stock_code}")
         
         logger.debug(f"Calling yfinance.download({normalized_code}, {start_date}, {end_date})")
         
         try:
+            # yfinance `end` is exclusive; convert our inclusive end date
             yf_end_date = yfinance_end_date_inclusive(end_date)
             
+            # Use yfinance to download data with lock for thread safety
             with YFINANCE_LOCK:
                 df = yf.download(
                     tickers=normalized_code,
@@ -175,11 +195,24 @@ class TaiwanStockFetcher(BaseFetcher):
         except Exception as e:
             if isinstance(e, DataFetchError):
                 raise
-            raise DataFetchError(f"Yahoo Finance Taiwan stock data fetch failed: {e}") from e
+            raise DataFetchError(f"Yahoo Finance US stock data fetch failed: {e}") from e
     
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
-        Standardize Taiwan stock data
+        Standardize US stock data
+        
+        yfinance returns column names:
+        Open, High, Low, Close, Volume (index is date)
+        
+        Need to map to standard column names:
+        date, open, high, low, close, volume, amount, pct_chg
+        
+        Args:
+            df: Raw data
+            stock_code: Stock code
+            
+        Returns:
+            Standardized DataFrame
         """
         df = df.copy()
         
@@ -205,10 +238,10 @@ class TaiwanStockFetcher(BaseFetcher):
             except Exception:
                 df.columns = df.columns.get_level_values(0)
         
-        # Reset index
+        # Reset index, convert date from index to column
         df = df.reset_index()
         
-        # Column mapping
+        # Column mapping (yfinance uses capitalized names)
         column_mapping = {
             'Date': 'date',
             'Open': 'open',
@@ -220,6 +253,7 @@ class TaiwanStockFetcher(BaseFetcher):
         
         df = df.rename(columns=column_mapping)
         
+        # Remove duplicates if any
         if df.columns.has_duplicates:
             df = df.loc[:, ~df.columns.duplicated()]
         
@@ -231,7 +265,7 @@ class TaiwanStockFetcher(BaseFetcher):
             df['pct_chg'] = close_series.pct_change() * 100
             df['pct_chg'] = df['pct_chg'].fillna(0).round(2)
         
-        # Calculate trading amount
+        # Calculate trading amount (USD)
         if 'volume' in df.columns and 'close' in df.columns:
             volume_series = df['volume']
             if isinstance(volume_series, pd.DataFrame):
@@ -244,9 +278,7 @@ class TaiwanStockFetcher(BaseFetcher):
             df['amount'] = 0
         
         # Standardize stock code
-        normalized_code = self._normalize_stock_code(stock_code)
-        code_only = normalized_code.split('.')[0]
-        df['code'] = code_only
+        df['code'] = self._normalize_stock_code(stock_code)
         
         # Keep only required columns
         keep_cols = ['code'] + STANDARD_COLUMNS
@@ -257,17 +289,23 @@ class TaiwanStockFetcher(BaseFetcher):
     
     def get_stock_name(self, stock_code: str) -> Optional[str]:
         """
-        獲取台股股票名稱
+        Get US stock name
+        
+        Uses yfinance's info property to get stock name,
+        prioritizing shortName or longName
+        
+        Args:
+            stock_code: Stock code (e.g. AAPL, MSFT)
+            
+        Returns:
+            Stock name, e.g. "Apple Inc."
+            Returns None if fetch fails
         """
         import yfinance as yf
         
-        # Check if it's a Taiwan stock first
-        if not self._is_taiwan_stock(stock_code):
-            return None
+        normalized_code = self._normalize_stock_code(stock_code)
         
-        try:
-            normalized_code = self._normalize_stock_code(stock_code)
-        except DataFetchError:
+        if not self._is_us_stock(normalized_code):
             return None
         
         try:
@@ -275,25 +313,34 @@ class TaiwanStockFetcher(BaseFetcher):
                 ticker = yf.Ticker(normalized_code)
                 info = ticker.info
             
+            # Priority: shortName > longName
             name = info.get('shortName') or info.get('longName')
             if name:
-                logger.info(f"[{stock_code}] 獲取股票名稱: {name}")
+                logger.info(f"[{stock_code}] Got stock name: {name}")
                 return name
             return None
         except Exception as e:
-            logger.warning(f"[{stock_code}] 獲取股票名稱失敗: {e}")
+            logger.warning(f"[{stock_code}] Failed to get stock name: {e}")
             return None
 
 
 if __name__ == "__main__":
+    # Test code
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s'
     )
     
-    fetcher = TaiwanStockFetcher()
+    fetcher = USStockFetcher()
     
-    test_codes = ['2330', '2330.TW', '2317.TW', '2454.TW']
+    # Test cases
+    test_codes = [
+        'AAPL',     # Apple
+        'MSFT',     # Microsoft
+        'GOOGL',    # Alphabet
+        'TSLA',     # Tesla
+        'SPY',      # S&P 500 ETF
+    ]
     
     for code in test_codes:
         try:
@@ -301,6 +348,14 @@ if __name__ == "__main__":
             print(f"Testing stock: {code}")
             print('='*50)
             
+            # Test stock identification
+            print(f"Is US stock: {fetcher._is_us_stock(code)}")
+            
+            # Get stock name
+            name = fetcher.get_stock_name(code)
+            print(f"Stock name: {name}")
+            
+            # Get daily data
             df = fetcher.get_daily_data(code, days=5)
             print(f"Successfully fetched {len(df)} records")
             print(f"\nLast 3 days data:")

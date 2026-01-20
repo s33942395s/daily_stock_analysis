@@ -256,16 +256,19 @@ class DataFetcherManager:
         """
         Initialize default data source list
         
-        Priority (Taiwan stocks):
+        Priority:
         1. TaiwanStockFetcher (Priority 1) - Taiwan stocks via YFinance
-        2. YfinanceFetcher (Priority 5) - Fallback for international
+        2. USStockFetcher (Priority 2) - US stocks via YFinance
+        3. YfinanceFetcher (Priority 5) - Fallback for international
         """
         from .taiwan_stock_fetcher import TaiwanStockFetcher
+        from .us_stock_fetcher import USStockFetcher
         from .yfinance_fetcher import YfinanceFetcher
         from .institutional_fetcher import InstitutionalFetcher
         
         self._fetchers = [
             TaiwanStockFetcher(),
+            USStockFetcher(),
             YfinanceFetcher(),
         ]
         

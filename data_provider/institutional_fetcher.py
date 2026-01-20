@@ -48,7 +48,8 @@ class InstitutionalFetcher:
     def get_institutional_data(
         self, 
         stock_code: str, 
-        date: Optional[str] = None
+        date: Optional[str] = None,
+        max_retry_days: int = 5
     ) -> Optional[Dict[str, Any]]:
         """
         獲取個股三大法人買賣超數據
@@ -56,6 +57,7 @@ class InstitutionalFetcher:
         Args:
             stock_code: 股票代碼 (如 2330, 2330.TW)
             date: 日期 (YYYY-MM-DD 格式，預設為最近交易日)
+            max_retry_days: 如果當天無數據，最多回退幾個交易日（預設 5 天）
             
         Returns:
             {
@@ -72,30 +74,71 @@ class InstitutionalFetcher:
         # 標準化股票代碼
         code = self._normalize_code(stock_code)
         
-        # 處理日期
-        if date is None:
-            date = self._get_latest_trading_date()
+        # 處理日期：生成待嘗試的日期列表（從今天往前推）
+        dates_to_try = self._get_trading_dates_to_try(date, max_retry_days)
         
-        # 檢查快取
-        cache_key = f"{date}_{code}"
-        if cache_key in self._cache:
-            logger.debug(f"[{code}] 從快取獲取三大法人數據")
-            return self._cache[cache_key]
+        for try_date in dates_to_try:
+            # 檢查快取
+            cache_key = f"{try_date}_{code}"
+            if cache_key in self._cache:
+                logger.debug(f"[{code}] 從快取獲取三大法人數據 ({try_date})")
+                return self._cache[cache_key]
+            
+            # 嘗試從 TWSE (上市) 獲取
+            data = self._fetch_twse(code, try_date)
+            
+            # 如果上市找不到，嘗試上櫃
+            if data is None:
+                data = self._fetch_tpex(code, try_date)
+            
+            # 如果獲取到數據，存入快取並返回
+            if data:
+                self._cache[cache_key] = data
+                if try_date != dates_to_try[0]:
+                    logger.info(f"[{code}] 三大法人數據（回退至 {try_date}）: "
+                               f"外資 {data['foreign_net']:+,}張, "
+                               f"投信 {data['trust_net']:+,}張, "
+                               f"自營商 {data['dealer_net']:+,}張")
+                else:
+                    logger.info(f"[{code}] 三大法人數據: 外資 {data['foreign_net']:+,}張, "
+                               f"投信 {data['trust_net']:+,}張, 自營商 {data['dealer_net']:+,}張")
+                return data
+            
+            # 首次嘗試失敗時，提示正在回退
+            if try_date == dates_to_try[0] and len(dates_to_try) > 1:
+                logger.debug(f"[{code}] {try_date} 無三大法人數據，嘗試回退至前一交易日...")
         
-        # 嘗試從 TWSE (上市) 獲取
-        data = self._fetch_twse(code, date)
+        # 所有日期都嘗試失敗
+        logger.warning(f"[{code}] 無法獲取三大法人數據（已嘗試 {len(dates_to_try)} 個交易日）")
+        return None
+    
+    def _get_trading_dates_to_try(self, date: Optional[str], max_days: int) -> list:
+        """
+        獲取待嘗試的交易日列表（從指定日期往前推）
         
-        # 如果上市找不到，嘗試上櫃
-        if data is None:
-            data = self._fetch_tpex(code, date)
+        Args:
+            date: 起始日期（None 表示今天）
+            max_days: 最多嘗試幾個交易日
+            
+        Returns:
+            交易日列表（YYYY-MM-DD 格式）
+        """
+        if date:
+            current = datetime.strptime(date, '%Y-%m-%d')
+        else:
+            current = datetime.now()
         
-        # 存入快取
-        if data:
-            self._cache[cache_key] = data
-            logger.info(f"[{code}] 三大法人數據: 外資 {data['foreign_net']:+,}張, "
-                       f"投信 {data['trust_net']:+,}張, 自營商 {data['dealer_net']:+,}張")
+        dates = []
+        attempts = 0
         
-        return data
+        while len(dates) < max_days and attempts < max_days * 2:
+            # 跳過週末
+            if current.weekday() < 5:  # 0-4 = Mon-Fri
+                dates.append(current.strftime('%Y-%m-%d'))
+            current -= timedelta(days=1)
+            attempts += 1
+        
+        return dates
     
     def _normalize_code(self, stock_code: str) -> str:
         """標準化股票代碼（去除 .TW/.TWO 後綴）"""

@@ -33,3 +33,7 @@ httpx[socks]                # HTTP client + SOCKS proxy support
 
 # Progress Display
 tqdm>=4.66.0                # Progress bar for batch processing
+
+# Web Application
+flask>=2.0.0                # Web framework for analysis tool
+

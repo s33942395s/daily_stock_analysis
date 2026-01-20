@@ -15,6 +15,7 @@ YfinanceFetcher - 兜底数据源 (Priority 4)
 """
 
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -28,6 +29,7 @@ from tenacity import (
 )
 
 from .base import BaseFetcher, DataFetchError, STANDARD_COLUMNS
+from .yfinance_shared import yfinance_download, yfinance_end_date_inclusive
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +76,14 @@ class YfinanceFetcher(BaseFetcher):
         code = stock_code.strip()
         
         # 已经包含后缀的情况
-        if '.SS' in code.upper() or '.SZ' in code.upper():
-            return code.upper()
+        code_upper = code.upper()
+        if any(suffix in code_upper for suffix in ('.SS', '.SZ', '.TW', '.TWO')):
+            return code_upper
+
+        # Non-numeric tickers (e.g., AAPL, BRK.B) should pass through unchanged.
+        # Only convert pure numeric codes as China A-shares (.SS/.SZ).
+        if re.search(r"[A-Z]", code_upper):
+            return code_upper
         
         # 去除可能的后缀
         code = code.replace('.SH', '').replace('.sh', '')
@@ -115,10 +123,13 @@ class YfinanceFetcher(BaseFetcher):
         
         try:
             # 使用 yfinance 下载数据
-            df = yf.download(
+            # yfinance `end` is exclusive; convert our inclusive end date to yfinance's exclusive `end`.
+            yf_end_date = yfinance_end_date_inclusive(end_date)
+
+            df = yfinance_download(
                 tickers=yf_code,
                 start=start_date,
-                end=end_date,
+                end=yf_end_date,
                 progress=False,  # 禁止进度条
                 auto_adjust=True,  # 自动调整价格（复权）
             )
@@ -144,6 +155,18 @@ class YfinanceFetcher(BaseFetcher):
         date, open, high, low, close, volume, amount, pct_chg
         """
         df = df.copy()
+
+        # Handle yfinance MultiIndex columns defensively
+        if isinstance(df.columns, pd.MultiIndex):
+            try:
+                last_level = df.columns.get_level_values(-1)
+                unique_last = list(pd.unique(last_level))
+                if len(unique_last) == 1:
+                    df = df.xs(unique_last[0], axis=1, level=-1, drop_level=True)
+                else:
+                    df.columns = df.columns.get_level_values(0)
+            except Exception:
+                df.columns = df.columns.get_level_values(0)
         
         # 重置索引，将日期从索引变为列
         df = df.reset_index()
@@ -159,6 +182,9 @@ class YfinanceFetcher(BaseFetcher):
         }
         
         df = df.rename(columns=column_mapping)
+
+        if df.columns.has_duplicates:
+            df = df.loc[:, ~df.columns.duplicated()]
         
         # 计算涨跌幅（因为 yfinance 不直接提供）
         if 'close' in df.columns:

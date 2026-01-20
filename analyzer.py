@@ -112,6 +112,14 @@ class AnalysisResult:
             'operation_advice': self.operation_advice,
             'confidence_level': self.confidence_level,
             'dashboard': self.dashboard,  # 決策儀表板數據
+            # Backward-compatible fields for web_app/static UI
+            'core_logic': self.core_logic,
+            'key_signals': self.key_signals,
+            'risk_warnings': self.risk_warnings,
+            'sniper_strategy': self.sniper_strategy,
+            'position_strategy': self.position_strategy,
+            'checklist': self.checklist,
+            'confidence': self.confidence,
             'trend_analysis': self.trend_analysis,
             'short_term_outlook': self.short_term_outlook,
             'medium_term_outlook': self.medium_term_outlook,
@@ -133,6 +141,59 @@ class AnalysisResult:
             'success': self.success,
             'error_message': self.error_message,
         }
+
+    # --- Backward-compatible computed attributes (used by web_app.py) ---
+
+    @property
+    def core_logic(self) -> str:
+        """
+        Core logic text shown in the UI.
+
+        Older UI expects `core_logic`; new analyzer outputs `dashboard` + `analysis_summary`.
+        """
+        return self.get_core_conclusion() or self.analysis_summary or ""
+
+    @property
+    def key_signals(self) -> List[str]:
+        """Key signals list for the UI (derived from `key_points`)."""
+        if not self.key_points:
+            return []
+        parts = [p.strip() for p in self.key_points.replace("；", ",").split(",")]
+        return [p for p in parts if p]
+
+    @property
+    def risk_warnings(self) -> List[str]:
+        """Risk warnings list for the UI (prefer dashboard risk alerts)."""
+        alerts = self.get_risk_alerts()
+        if alerts:
+            return alerts
+        if self.risk_warning:
+            return [self.risk_warning.strip()]
+        return []
+
+    @property
+    def sniper_strategy(self) -> Dict[str, str] | str:
+        """Sniper points for the UI (prefer dashboard)."""
+        points = self.get_sniper_points()
+        return points if points else ""
+
+    @property
+    def position_strategy(self) -> Dict[str, Any] | str:
+        """Position strategy for the UI (prefer dashboard)."""
+        if self.dashboard and 'battle_plan' in self.dashboard:
+            strategy = self.dashboard['battle_plan'].get('position_strategy', {})
+            return strategy if strategy else ""
+        return ""
+
+    @property
+    def checklist(self) -> List[str]:
+        """Action checklist for the UI (prefer dashboard)."""
+        return self.get_checklist()
+
+    @property
+    def confidence(self) -> str:
+        """Confidence string for the UI (maps to `confidence_level`)."""
+        return self.confidence_level or ""
     
     def get_core_conclusion(self) -> str:
         """獲取核心結論（一句話）"""
@@ -208,7 +269,7 @@ class GeminiAnalyzer:
     # 核心模块：核心结论 + 数据透视 + 舆情情报 + 作战计划
     # ========================================
     
-    SYSTEM_PROMPT = """你是一位專注於趨勢交易的 A 股投資分析師，負責生成專業的【決策儀表板】分析報告。
+    SYSTEM_PROMPT = """你是一位專注於趨勢交易的股票投資分析師，負責生成專業的【決策儀表板】分析報告。
 
 ## 核心交易理念（必須嚴格遵守）
 
@@ -383,7 +444,14 @@ class GeminiAnalyzer:
 2. **分持倉建議**：空倉者和持倉者給不同建議
 3. **精確狙擊點**：必須給出具體價格，不說模糊的話
 4. **檢查清冊可视化**：用 ✅⚠️❌ 明確顯示每項檢查結果
-5. **風險優先級**：輿情中的風險點要醒目標出"""
+5. **風險優先級**：輿情中的風險點要醒目標出
+
+## 美股宏觀濾網（若上下文提供 us_market_indicators）
+
+若輸入中包含 `us_market_indicators`（SPY/SPX 趨勢、RSP/SPY 寬度、200DMA 之上比例、VIX、2Y/10Y、HY 利差、DXY），請將其作為
+「市場環境/風險偏好」權重：
+- 風險偏好轉弱（VIX 上升、HY 利差擴大、美元轉強、2Y>10Y/曲線倒掛加深、廣度轉弱）時，降低追價與加倉建議的置信度與倉位。
+"""
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -965,6 +1033,36 @@ class GeminiAnalyzer:
 ### 量價變化
 - 成交量較昨日變化：{volume_change}倍
 - 價格較昨日變化：{context.get('price_change_ratio', 'N/A')}%
+"""
+        
+        # 美股市場環境（宏觀/寬度/風險）- 僅在提供 us_market_indicators 時出現
+        if 'us_market_indicators' in context and isinstance(context.get('us_market_indicators'), dict):
+            us = context['us_market_indicators']
+            trend = us.get('trend', {}) if isinstance(us.get('trend'), dict) else {}
+            breadth = us.get('breadth_rsp_vs_spy', {}) if isinstance(us.get('breadth_rsp_vs_spy'), dict) else {}
+            breadth2 = us.get('breadth_pct_above_200dma', {}) if isinstance(us.get('breadth_pct_above_200dma'), dict) else {}
+            vix = us.get('volatility_vix', {}) if isinstance(us.get('volatility_vix'), dict) else {}
+            dxy = us.get('usd_dxy', {}) if isinstance(us.get('usd_dxy'), dict) else {}
+            y10 = us.get('rates_10y', {}) if isinstance(us.get('rates_10y'), dict) else {}
+            y2 = us.get('rates_2y', {}) if isinstance(us.get('rates_2y'), dict) else {}
+            s210 = us.get('rates_2s10s', {}) if isinstance(us.get('rates_2s10s'), dict) else {}
+            hy = us.get('credit_hy_oas', {}) if isinstance(us.get('credit_hy_oas'), dict) else {}
+
+            prompt += f"""
+---
+
+## 🌎 美股市場環境（宏觀 / 寬度 / 風險）
+| 指標 | 最新 | 解讀 |
+|------|------|------|
+| 大盤趨勢 | {trend.get('symbol', 'SPY')} 收盤 {trend.get('close', 'N/A')}（MA50 {trend.get('ma50', 'N/A')}, MA200 {trend.get('ma200', 'N/A')}） | {trend.get('regime', '')} |
+| 市場寬度（RSP/SPY） | 比值 {breadth.get('ratio', 'N/A')}（MA50 {breadth.get('ratio_ma50', 'N/A')}） | {breadth.get('interpretation', '')} |
+| 寬度2（>200D MA 比例） | {breadth2.get('pct_above_200dma', 'N/A')}%（樣本 {breadth2.get('valid', 'N/A')}） | >60% 偏健康；<40% 偏擴散 |
+| 波動（VIX） | {vix.get('close', 'N/A')}（MA20 {vix.get('ma20', 'N/A')}） | VIX 上升＝避險需求升 |
+| 利率（10Y） | {y10.get('value', 'N/A')}%（{y10.get('date', 'N/A')}） | 估值折現/資金成本 |
+| 政策預期（2Y） | {y2.get('value', 'N/A')}%（{y2.get('date', 'N/A')}） | 聯準會利率路徑定價 |
+| 曲線（10Y-2Y） | {s210.get('value', 'N/A')}%（{s210.get('date', 'N/A')}） | 越負＝倒掛越深 |
+| 信用風險（HY OAS） | {hy.get('value', 'N/A')}%（{hy.get('date', 'N/A')}） | 擴大＝企業融資壓力升 |
+| 美元（DXY） | {dxy.get('close', 'N/A')}（MA20 {dxy.get('ma20', 'N/A')}） | 走強常壓抑風險資產 |
 """
         
         # 添加新聞搜索結果（重點區域）

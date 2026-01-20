@@ -34,6 +34,7 @@ import argparse
 import logging
 import sys
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timezone, timedelta
 from logging.handlers import RotatingFileHandler
@@ -160,6 +161,11 @@ class StockAnalysisPipeline:
             tavily_keys=self.config.tavily_api_keys,
             serpapi_keys=self.config.serpapi_keys,
         )
+
+        # US market macro snapshot cache (avoid refetching per stock/thread)
+        self._us_market_lock = threading.Lock()
+        self._us_market_snapshot: Optional[Dict[str, Any]] = None
+        self._us_market_snapshot_at: float = 0.0
         
         logger.info(f"調度器初始化完成，最大併發數: {self.max_workers}")
         if hasattr(self.trend_analyzer, 'strategy'):
@@ -236,6 +242,8 @@ class StockAnalysisPipeline:
             AnalysisResult 或 None（如果分析失敗）
         """
         try:
+            code = code.strip().upper()
+
             # 獲取股票名稱
             # 優先順序: 1. STOCK_NAME_MAP 映射表  2. API 自動獲取  3. 股票代碼
             stock_name = STOCK_NAME_MAP.get(code, '')
@@ -244,7 +252,18 @@ class StockAnalysisPipeline:
                 # 嘗試從數據源自動獲取股票名稱
                 stock_name = self.fetcher_manager.get_stock_name(code) or code
             
-            logger.info(f"[{code}] {stock_name} - Using Taiwan stock analysis")
+            market = self._detect_market(code)
+            logger.info(f"[{code}] {stock_name} - Using {market} stock analysis")
+
+            # Web/API 可能直接呼叫 analyze_stock()，DB 尚未有數據：先嘗試抓取並保存
+            try:
+                if not self.db.get_latest_data(code, days=1):
+                    logger.info(f"[{code}] 未找到本地數據，先從數據源獲取...")
+                    success, error = self.fetch_and_save_stock_data(code)
+                    if not success:
+                        logger.warning(f"[{code}] 數據獲取失敗: {error}")
+            except Exception as e:
+                logger.warning(f"[{code}] 預先獲取數據失敗: {e}")
 
             
             # Step 2: Skip chip distribution (not available for Taiwan stocks via YFinance)
@@ -268,14 +287,15 @@ class StockAnalysisPipeline:
             
             # Step 3.5: 獲取三大法人買賣超數據（籌碼面）
             institutional_data = None
-            try:
-                institutional_data = self.fetcher_manager.get_institutional_data(code)
-                if institutional_data:
-                    logger.info(f"[{code}] 三大法人: 外資 {institutional_data['foreign_net']:+,}張, "
-                               f"投信 {institutional_data['trust_net']:+,}張, "
-                               f"自營商 {institutional_data['dealer_net']:+,}張")
-            except Exception as e:
-                logger.warning(f"[{code}] 獲取三大法人數據失敗: {e}")
+            if market == "TW":
+                try:
+                    institutional_data = self.fetcher_manager.get_institutional_data(code)
+                    if institutional_data:
+                        logger.info(f"[{code}] 三大法人: 外資 {institutional_data['foreign_net']:+,}張, "
+                                   f"投信 {institutional_data['trust_net']:+,}張, "
+                                   f"自營商 {institutional_data['dealer_net']:+,}張")
+                except Exception as e:
+                    logger.warning(f"[{code}] 獲取三大法人數據失敗: {e}")
             
             # Step 4: 多維度情報搜索（最新消息+風險排查+業績預期）
             news_context = None
@@ -308,11 +328,16 @@ class StockAnalysisPipeline:
                 return None
             
             # Step 6: Enhance context (add trend analysis, stock name, institutional data)
+            us_market_snapshot = None
+            if market == "US":
+                us_market_snapshot = self._get_us_market_snapshot()
             enhanced_context = self._enhance_context(
                 context, 
                 trend_result,
                 stock_name,
-                institutional_data
+                institutional_data,
+                market=market,
+                us_market_snapshot=us_market_snapshot,
             )
             
             # Step 7: 調用 AI 分析（傳入增強的上下文和新聞）
@@ -324,13 +349,55 @@ class StockAnalysisPipeline:
             logger.error(f"[{code}] 分析失敗: {e}")
             logger.exception(f"[{code}] 詳細錯誤信息:")
             return None
+
+    @staticmethod
+    def _detect_market(code: str) -> str:
+        """
+        根據代碼格式推斷市場：'TW' / 'US' / 'CN' / 'AUTO'
+        """
+        c = (code or "").strip().upper()
+
+        # Taiwan
+        if c.endswith(".TW") or c.endswith(".TWO"):
+            return "TW"
+
+        # China A-share
+        if c.endswith(".SS") or c.endswith(".SZ"):
+            return "CN"
+
+        # Pure numeric (TW stocks/ETFs vs CN A-share)
+        if c.isdigit():
+            if len(c) == 4:
+                return "TW"
+
+            if len(c) == 6:
+                # CN A-share common prefixes
+                if c.startswith(("600", "601", "603", "605", "688", "689")):
+                    return "CN"
+                if c.startswith(("000", "001", "002", "003", "300", "301", "302")):
+                    return "CN"
+
+                # Otherwise treat as TW ETF (e.g., 006208, 00878)
+                return "TW"
+
+            # Fallback: treat other numeric lengths as AUTO
+            return "AUTO"
+
+        # US (letters, including class shares like BRK.B)
+        base = c.replace(".", "")
+        if base.isalpha() and 1 <= len(base) <= 5:
+            return "US"
+
+        return "AUTO"
     
     def _enhance_context(
         self,
         context: Dict[str, Any],
         trend_result: Optional[TrendAnalysisResult],
         stock_name: str = "",
-        institutional_data: Optional[Dict[str, Any]] = None
+        institutional_data: Optional[Dict[str, Any]] = None,
+        market: str = "AUTO",
+        us_market_snapshot: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         增強分析上下文（台股版）
@@ -347,6 +414,7 @@ class StockAnalysisPipeline:
             增強後的上下文
         """
         enhanced = context.copy()
+        enhanced["market"] = market
         
         # 添加股票名稱
         if stock_name:
@@ -377,8 +445,33 @@ class StockAnalysisPipeline:
                 'total_net': institutional_data.get('total_net', 0),
                 'date': institutional_data.get('date', ''),
             }
+
+        # US macro / market indicators (SPY/RSP/VIX/2Y/10Y/HY spread/DXY, etc.)
+        if market == "US" and us_market_snapshot:
+            enhanced["us_market_indicators"] = us_market_snapshot
         
         return enhanced
+
+    def _get_us_market_snapshot(self, ttl_seconds: float = 30 * 60) -> Optional[Dict[str, Any]]:
+        """
+        Fetch/cache a US market macro snapshot for LLM context.
+        """
+        now = time.time()
+        with self._us_market_lock:
+            if self._us_market_snapshot and (now - self._us_market_snapshot_at) < ttl_seconds:
+                return self._us_market_snapshot
+
+        try:
+            from us_market_analyzer import get_us_market_indicators
+
+            snapshot = get_us_market_indicators(breadth_limit=100)
+            with self._us_market_lock:
+                self._us_market_snapshot = snapshot
+                self._us_market_snapshot_at = time.time()
+            return snapshot
+        except Exception as e:
+            logger.warning(f"[USMarket] Failed to build market snapshot: {e}")
+            return None
 
     
     def _describe_volume_ratio(self, volume_ratio: float) -> str:
