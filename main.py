@@ -200,10 +200,19 @@ class StockAnalysisPipeline:
         try:
             today = date.today()
             
-            # 斷點續傳檢查：如果今日數據已存在，跳過
-            if not force_refresh and self.db.has_today_data(code, today):
-                logger.info(f"[{code}] 今日數據已存在，跳過獲取（斷點續傳）")
-                return True, None
+            # 資料新鮮度檢查：檢查最新資料是否在合理範圍內
+            if not force_refresh:
+                latest_data = self.db.get_latest_data(code, days=1)
+                if latest_data:
+                    latest_date = latest_data[0].date
+                    days_diff = (today - latest_date).days
+                    # 週一允許最多 4 天（週五的資料），其他日子允許 2 天
+                    max_allowed_days = 4 if today.weekday() == 0 else 2
+                    if days_diff <= max_allowed_days:
+                        logger.info(f"[{code}] 資料足夠新（最新: {latest_date}），跳過獲取")
+                        return True, None
+                    else:
+                        logger.info(f"[{code}] 資料已過期（最新: {latest_date}，距今 {days_diff} 天），重新獲取...")
             
             # 從數據源獲取數據
             logger.info(f"[{code}] 開始從數據源獲取數據...")
@@ -367,7 +376,8 @@ class StockAnalysisPipeline:
 
         # Pure numeric (TW stocks/ETFs vs CN A-share)
         if c.isdigit():
-            if len(c) == 4:
+            # TW stocks are typically 4 digits; TW ETFs may be 5-6 digits (e.g., 00923, 006208)
+            if len(c) in (4, 5):
                 return "TW"
 
             if len(c) == 6:

@@ -173,6 +173,12 @@ def analyze_stock():
         # 獲取分析流水線
         pipeline = get_pipeline()
         
+        # 先確保資料是最新的（強制刷新）
+        logger.info(f"[{code}] 強制從數據源獲取最新資料...")
+        success, error = pipeline.fetch_and_save_stock_data(code, force_refresh=True)
+        if not success:
+            logger.warning(f"[{code}] 資料更新失敗: {error}，嘗試使用現有資料分析")
+        
         # 執行分析
         result = pipeline.analyze_stock(code)
         
