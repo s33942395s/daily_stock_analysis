@@ -203,6 +203,10 @@ def analyze_stock():
                 'risk_warnings': result.risk_warnings,
                 'sniper_strategy': result.sniper_strategy,
                 'position_strategy': result.position_strategy,
+                'position_advice': {
+                    'no_position': result.get_position_advice(has_position=False),
+                    'has_position': result.get_position_advice(has_position=True)
+                },
                 'checklist': result.checklist,
                 'confidence': result.confidence,
                 'analyzed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')

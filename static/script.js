@@ -134,9 +134,9 @@ function displayResults(data) {
     document.getElementById('strategyContent').textContent =
         formatStrategy(data.sniper_strategy);
 
-    // Position
-    document.getElementById('positionContent').textContent =
-        formatStrategy(data.position_strategy);
+    // Position Advice
+    document.getElementById('positionContent').innerHTML =
+        formatPositionAdvice(data.position_advice, data.position_strategy);
 
     // Checklist
     const checklist = document.getElementById('checklist');
@@ -208,6 +208,37 @@ function formatStrategy(strategy) {
     }
 
     return '暫無資料';
+}
+
+/**
+ * Format position advice (空倉者/持倉者建議)
+ */
+function formatPositionAdvice(positionAdvice, positionStrategy) {
+    const lines = [];
+
+    // 顯示空倉者/持倉者具體建議
+    if (positionAdvice && typeof positionAdvice === 'object') {
+        if (positionAdvice.no_position) {
+            lines.push(`<div class="position-item"><span class="position-label">🆕 空倉者：</span><span class="position-text">${escapeHtml(positionAdvice.no_position)}</span></div>`);
+        }
+        if (positionAdvice.has_position) {
+            lines.push(`<div class="position-item"><span class="position-label">💼 持倉者：</span><span class="position-text">${escapeHtml(positionAdvice.has_position)}</span></div>`);
+        }
+    }
+
+    // 補充倉位策略
+    if (positionStrategy && typeof positionStrategy === 'object') {
+        const strategyText = Object.entries(positionStrategy)
+            .map(([key, value]) => escapeHtml(value))
+            .join(' | ');
+        if (strategyText) {
+            lines.push(`<div class="position-strategy">📊 ${strategyText}</div>`);
+        }
+    } else if (positionStrategy && typeof positionStrategy === 'string') {
+        lines.push(`<div class="position-strategy">📊 ${escapeHtml(positionStrategy)}</div>`);
+    }
+
+    return lines.length > 0 ? lines.join('') : '暫無資料';
 }
 
 /**
